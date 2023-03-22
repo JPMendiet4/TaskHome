@@ -47,7 +47,7 @@ class UserSerializer(serializers.ModelSerializer):
  
     def validate_active(self, value):
         if value != True:
-            raise serializers.ValidationError("El usuario no puede ser activado.")
+            raise serializers.ValidationError("El usuario debe ser activado.")
         return value
     
     def validate(self, value):
