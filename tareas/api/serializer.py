@@ -46,7 +46,7 @@ class UserSerializer(serializers.ModelSerializer):
         return phone_number
  
     def validate_active(self, value):
-        if not self.instance.active:
+        if value != True:
             raise serializers.ValidationError("Este municipio no cuenta con puestos de votación.")
         return value
     
