@@ -47,7 +47,7 @@ class UserSerializer(serializers.ModelSerializer):
  
     def validate_active(self, value):
         if value != True:
-            raise serializers.ValidationError("Este municipio no cuenta con puestos de votación.")
+            raise serializers.ValidationError("El usuario no puede ser activado.")
         return value
     
     def validate(self, value):
