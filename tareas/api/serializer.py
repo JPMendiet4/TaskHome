@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.core.mail import send_mail
+from django.conf import settings
 import re
 import datetime
 from tareas.models import User, Homework
@@ -107,8 +109,6 @@ class UserSerializer(serializers.ModelSerializer):
 
 
     def partial_update(self, instance, validated_data):
-        # Actualización parcial del objeto
-        # Recorre los campos que se quieren actualizar y los actualiza
         for field, value in validated_data.items():
             if field == 'name':
                 instance.name = value.capitalize()
@@ -165,7 +165,17 @@ class HomeworkSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('El usuario ingresado no existe')
         return user
 
-  
+    def to_representation(self, instance):
+        return {
+            "id": instance.id,
+            "title": instance.title,
+            "description": instance.description,
+            "time": instance.time,
+            "active": instance.active,
+            "user": instance.user.name,
+            "user_id": instance.user.id
+        }
+    
     
     def create(self, validated_data):
         existing_homework = Homework.objects.filter(
@@ -176,6 +186,7 @@ class HomeworkSerializer(serializers.ModelSerializer):
             return existing_homework
 
         return super().create(validated_data)
+
     
     
     def update(self, instance, validated_data):
