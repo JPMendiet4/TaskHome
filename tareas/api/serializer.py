@@ -172,7 +172,6 @@ class HomeworkSerializer(serializers.ModelSerializer):
             "description": instance.description,
             "time": instance.time,
             "active": instance.active,
-            #"user": instance.user.name,
             "user": (str(instance.user.name).split(" ")[0] + " " + str(instance.user.last_name).split(" ")[0]), 
             "user_id": instance.user.id
         }
