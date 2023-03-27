@@ -7,7 +7,6 @@ from tareas.models import User, Homework
 
 
 class UserSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = User
         fields = '__all__'
@@ -29,8 +28,6 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('El apellido solo puede contener letras')
         return last_name
 
-
-             
     def validate_email(self, value):
         if not value:
             raise serializers.ValidationError('Tiene que indicar un correo.')
@@ -107,7 +104,6 @@ class UserSerializer(serializers.ModelSerializer):
 
         return instance
 
-
     def partial_update(self, instance, validated_data):
         for field, value in validated_data.items():
             if field == 'name':
@@ -123,7 +119,7 @@ class UserSerializer(serializers.ModelSerializer):
                 instance.active = value
         instance.save()
         return instance
-    
+
     def delete(self, instance):
         if instance.active == False:
             raise serializers.ValidationError(
@@ -132,7 +128,6 @@ class UserSerializer(serializers.ModelSerializer):
             instance.active = False
             instance.save()
             return {'message': 'Usuario eliminado correctamente'}
-
 
 
 class HomeworkSerializer(serializers.ModelSerializer):
@@ -144,8 +139,7 @@ class HomeworkSerializer(serializers.ModelSerializer):
         if title == '':
             raise serializers.ValidationError('El nombre no puede estar vacio')
         return title
-        
-        
+
     def validate_time(self, value):
         if not value:
             raise serializers.ValidationError('El tiempo es requerido.')
@@ -156,8 +150,8 @@ class HomeworkSerializer(serializers.ModelSerializer):
     def validate_active(self, value):
         if value != True:
             raise serializers.ValidationError("El usuario debe ser activado.")
-        return value     
-    
+        return value
+
     def validate_user(self, user):
         if not user:
             raise serializers.ValidationError('Debe asignarle la tarea a un usuario')
@@ -172,11 +166,10 @@ class HomeworkSerializer(serializers.ModelSerializer):
             "description": instance.description,
             "time": instance.time,
             "active": instance.active,
-            "user": (str(instance.user.name).split(" ")[0] + " " + str(instance.user.last_name).split(" ")[0]), 
+            "user": (str(instance.user.name).split(" ")[0] + " " + str(instance.user.last_name).split(" ")[0]),
             "user_id": instance.user.id
         }
-    
-    
+
     def create(self, validated_data):
         existing_homework = Homework.objects.filter(
             title=validated_data['title'], active=False).first()
@@ -185,10 +178,18 @@ class HomeworkSerializer(serializers.ModelSerializer):
             existing_homework.save()
             return existing_homework
 
-        return super().create(validated_data)
+        homework = super().create(validated_data)
 
-    
-    
+        # enviar un correo electrónico al usuario asignado a la tarea
+        user = homework.user
+        subject = 'Nueva tarea asignada'
+        message = f'Hola {user.name}, se te ha asignado una nueva tarea: {homework.title}'
+        email_from = settings.EMAIL_HOST_USER
+        recipient_list = [user.email]
+        send_mail(subject, message, email_from, recipient_list)
+
+        return homework
+
     def update(self, instance, validated_data):
         self.validate_active(instance.active)
         validated_data = self.validate(validated_data)
@@ -196,11 +197,23 @@ class HomeworkSerializer(serializers.ModelSerializer):
         if validated_data.get('title'):
             validated_data['title'] = ' '.join(word.capitalize() for word in validated_data['title'].split())
 
+        # Obtener los detalles del usuario asignado a la tarea
+        user = instance.user
+        user_full_name = f"{user.name} {user.last_name}"
+        user_email = user.email
+
+        # Actualizar la instancia y guardarla
         instance.__dict__.update(validated_data)
         instance.save()
 
-        return instance
+        # Enviar el correo electrónico
+        subject = f"La tarea '{instance.title}' ha sido actualizada"
+        message = f"Hola {user_full_name},\n\nLa tarea '{instance.title}' ha sido actualizada.\n\nGracias,\nEl equipo de Tareas"
+        from_email = 'mi_correo_ejemplo@example.com'
+        recipient_list = [user_email]
+        send_mail(subject, message, from_email, recipient_list)
 
+        return instance
 
     def partial_update(self, instance, validated_data):
         for field, value in validated_data.items():
@@ -210,13 +223,19 @@ class HomeworkSerializer(serializers.ModelSerializer):
                 instance.last_name = value.capitalize()
             elif field == 'active':
                 instance.email = value
+                if value:
+                    send_mail(
+                        'Tarea activada',
+                        f'La tarea {instance.title} ha sido activada.',
+                        'from@example.com',
+                        [instance.user.email],
+                        fail_silently=False,
+                    )
             elif field == 'user':
                 instance.phone_number = value
         instance.save()
         return instance
 
-    
-    
     def delete(self, instance):
         if instance.active == False:
             raise serializers.ValidationError(
@@ -224,4 +243,11 @@ class HomeworkSerializer(serializers.ModelSerializer):
         else:
             instance.active = False
             instance.save()
+            send_mail(
+                'Tarea eliminada',
+                f'La tarea {instance.title} ha sido eliminada.',
+                'from@example.com',
+                [instance.user.email],
+                fail_silently=False,
+            )
             return {'message': 'Tarea eliminada correctamente'}
