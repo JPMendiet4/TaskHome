@@ -11,7 +11,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = '__all__'
 
-    def validate_name(self, name):
+    @staticmethod
+    def validate_name(name):
         if name == '':
             raise serializers.ValidationError('El nombre no puede estar vacio')
         name = name.strip().title()  # Convierte la primera letra de cada palabra a mayúscula
@@ -19,7 +20,8 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('El nombre solo puede contener letras')
         return name
 
-    def validate_last_name(self, last_name):
+    @staticmethod
+    def validate_last_name(last_name):
         if last_name == '':
             raise serializers.ValidationError(
                 'El apellido no puede estar vacio')
@@ -28,7 +30,8 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('El apellido solo puede contener letras')
         return last_name
 
-    def validate_email(self, value):
+    @staticmethod
+    def validate_email(value):
         if not value:
             raise serializers.ValidationError('Tiene que indicar un correo.')
         elif not re.match(r"[^@]+@[^@]+\.[^@]+", value):
@@ -36,7 +39,8 @@ class UserSerializer(serializers.ModelSerializer):
                 'El correo electrónico no es válido')
         return value
 
-    def validate_phone_number(self, phone_number):
+    @staticmethod
+    def validate_phone_number(phone_number):
         if not phone_number:
             raise serializers.ValidationError(
                 'Tiene que indicar un número de telefono.')
@@ -50,8 +54,9 @@ class UserSerializer(serializers.ModelSerializer):
 
         return phone_number
 
-    def validate_active(self, value):
-        if value != True:
+    @staticmethod
+    def validate_active(value):
+        if value is not True:
             raise serializers.ValidationError("El usuario debe ser activado.")
         return value
 
@@ -120,8 +125,9 @@ class UserSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-    def delete(self, instance):
-        if instance.active == False:
+    @staticmethod
+    def delete(instance):
+        if instance.active is False:
             raise serializers.ValidationError(
                 'No existe este usuario en la base de datos')
         else:
@@ -135,24 +141,28 @@ class HomeworkSerializer(serializers.ModelSerializer):
         model = Homework
         fields = '__all__'
 
-    def validate_title(self, title):
+    @staticmethod
+    def validate_title(title):
         if title == '':
             raise serializers.ValidationError('El nombre no puede estar vacio')
         return title
 
-    def validate_time(self, value):
+    @staticmethod
+    def validate_time(value):
         if not value:
             raise serializers.ValidationError('El tiempo es requerido.')
         elif value < datetime.time(hour=6) or value > datetime.time(hour=18):
             raise serializers.ValidationError('El tiempo debe estar entre las 6:00 a.m. y las 6:00 p.m.')
         return value
 
-    def validate_active(self, value):
-        if value != True:
+    @staticmethod
+    def validate_active(value):
+        if value is not True:
             raise serializers.ValidationError("El usuario debe ser activado.")
         return value
 
-    def validate_user(self, user):
+    @staticmethod
+    def validate_user(user):
         if not user:
             raise serializers.ValidationError('Debe asignarle la tarea a un usuario')
         if not User.objects.filter(pk=user.pk).exists():
@@ -166,8 +176,13 @@ class HomeworkSerializer(serializers.ModelSerializer):
             "description": instance.description,
             "time": instance.time,
             "active": instance.active,
-            "user": (str(instance.user.name).split(" ")[0] + " " + str(instance.user.last_name).split(" ")[0]),
-            "user_id": instance.user.id
+            "user": {
+                'id': instance.user.id,
+                'username': (
+                        str(instance.user.name).split(" ")[0] + " " + str(instance.user.last_name).split(" ")[0]
+                )
+
+            }
         }
 
     def create(self, validated_data):
@@ -197,25 +212,31 @@ class HomeworkSerializer(serializers.ModelSerializer):
         if validated_data.get('title'):
             validated_data['title'] = ' '.join(word.capitalize() for word in validated_data['title'].split())
 
-        # Obtener los detalles del usuario asignado a la tarea
-        user = instance.user
-        user_full_name = f"{user.name} {user.last_name}"
-        user_email = user.email
+        # Obtener el usuario asignado a la tarea
+        user = validated_data.get('user', None)
+        if user is not None:
+            instance.user = user
 
         # Actualizar la instancia y guardarla
         instance.__dict__.update(validated_data)
         instance.save()
 
+        # Obtener los detalles del usuario asignado a la tarea
+        user = instance.user
+        user_full_name = f"{user.name} {user.last_name}"
+        user_email = user.email
+
         # Enviar el correo electrónico
         subject = f"La tarea '{instance.title}' ha sido actualizada"
-        message = f"Hola {user_full_name},\n\nLa tarea '{instance.title}' ha sido actualizada.\n\nGracias,\nEl equipo de Tareas"
+        message = f"Hola {user_full_name},\nLa tarea '{instance.title}' ha sido actualizada.\nGracias,\nEl equipo de Tareas"
         from_email = 'mi_correo_ejemplo@example.com'
         recipient_list = [user_email]
         send_mail(subject, message, from_email, recipient_list)
 
         return instance
 
-    def partial_update(self, instance, validated_data):
+    @staticmethod
+    def partial_update(instance, validated_data):
         for field, value in validated_data.items():
             if field == 'title':
                 instance.name = value.capitalize()
@@ -236,8 +257,9 @@ class HomeworkSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-    def delete(self, instance):
-        if instance.active == False:
+    @staticmethod
+    def delete(instance):
+        if instance.active is False:
             raise serializers.ValidationError(
                 'No existe esta tarea en la base de datos')
         else:
