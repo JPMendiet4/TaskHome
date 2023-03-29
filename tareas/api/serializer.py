@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.core.mail import send_mail
+from django.core.exceptions import ValidationError
 from django.conf import settings
 import re
 import datetime
@@ -15,7 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
     def validate_name(name):
         if name == '':
             raise serializers.ValidationError('El nombre no puede estar vacio')
-        name = name.strip().title()  # Convierte la primera letra de cada palabra a mayúscula
+        name = name.strip().title()
         if not all(word.isalpha() for word in name.split()):
             raise serializers.ValidationError('El nombre solo puede contener letras')
         return name
@@ -25,7 +26,7 @@ class UserSerializer(serializers.ModelSerializer):
         if last_name == '':
             raise serializers.ValidationError(
                 'El apellido no puede estar vacio')
-        last_name = last_name.strip().title()  # Convierte la primera letra de cada palabra a mayúscula
+        last_name = last_name.strip().title()
         if not all(word.isalpha() for word in last_name.split()):
             raise serializers.ValidationError('El apellido solo puede contener letras')
         return last_name
@@ -57,10 +58,9 @@ class UserSerializer(serializers.ModelSerializer):
     @staticmethod
     def validate_active(value):
         if value is not True:
-            raise serializers.ValidationError("El usuario debe ser activado.")
-        return value
-
-    def validate(self, value):
+            raise serializers.ValidationError(
+                "El usuario debe ser activado para poder asignarle tareas."
+            )
         return value
 
     def create(self, validated_data):
@@ -127,11 +127,11 @@ class UserSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def delete(instance):
-        if instance.active is False:
+        if instance.status is False:
             raise serializers.ValidationError(
                 'No existe este usuario en la base de datos')
         else:
-            instance.active = False
+            instance.status = False
             instance.save()
             return {'message': 'Usuario eliminado correctamente'}
 
@@ -156,9 +156,9 @@ class HomeworkSerializer(serializers.ModelSerializer):
         return value
 
     @staticmethod
-    def validate_active(value):
-        if value is not True:
-            raise serializers.ValidationError("El usuario debe ser activado.")
+    def validate_status(value):
+        if not value:
+            raise serializers.ValidationError('Debe establecer el estado de la tarea')
         return value
 
     @staticmethod
@@ -175,7 +175,7 @@ class HomeworkSerializer(serializers.ModelSerializer):
             "title": instance.title,
             "description": instance.description,
             "time": instance.time,
-            "active": instance.active,
+            "status": instance.get_status_display(),
             "user": {
                 'id': instance.user.id,
                 'username': (
@@ -187,11 +187,12 @@ class HomeworkSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         existing_homework = Homework.objects.filter(
-            title=validated_data['title'], active=False).first()
+            title=validated_data['title'], status__in=['C', 'P']).first()
         if existing_homework:
-            existing_homework.active = True
+            existing_homework.status = validated_data.get('status', existing_homework.status)
             existing_homework.save()
             return existing_homework
+
 
         homework = super().create(validated_data)
 
@@ -206,8 +207,9 @@ class HomeworkSerializer(serializers.ModelSerializer):
         return homework
 
     def update(self, instance, validated_data):
-        self.validate_active(instance.active)
-        validated_data = self.validate(validated_data)
+        status = validated_data.get('status')
+        if status and status not in ['C', 'P', 'T']:
+            raise ValidationError('Invalid status')
 
         if validated_data.get('title'):
             validated_data['title'] = ' '.join(word.capitalize() for word in validated_data['title'].split())
@@ -237,17 +239,29 @@ class HomeworkSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def partial_update(instance, validated_data):
+        status = validated_data.get('status')
+        if status and status not in ['C', 'P', 'T']:
+            raise ValidationError('Invalid status')
+
         for field, value in validated_data.items():
             if field == 'title':
                 instance.name = value.capitalize()
             elif field == 'time':
                 instance.last_name = value.capitalize()
-            elif field == 'active':
-                instance.email = value
-                if value:
+            elif field == 'status':
+                instance.status = value
+                if value == 'C':
                     send_mail(
-                        'Tarea activada',
-                        f'La tarea {instance.title} ha sido activada.',
+                        'Tarea creada',
+                        f'La tarea {instance.title} ha sido creada.',
+                        'from@example.com',
+                        [instance.user.email],
+                        fail_silently=False,
+                    )
+                elif value == 'T':
+                    send_mail(
+                        'Tarea terminada',
+                        f'La tarea {instance.title} ha sido terminada.',
                         'from@example.com',
                         [instance.user.email],
                         fail_silently=False,

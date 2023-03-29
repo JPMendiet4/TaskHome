@@ -21,7 +21,7 @@ class UserReadAPIView(generics.ListAPIView):
     serializer_class = UserSerializer
 
     def get_queryset(self):
-        return User.objects.filter(active=True)
+        return User.objects.filter(status=True)
 
     def get(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -77,7 +77,7 @@ class HomeworkReadAPIView(generics.ListAPIView):
     serializer_class = HomeworkSerializer
 
     def get_queryset(self):
-        return Homework.objects.filter(active=True)
+        return Homework.objects.filter(status='C' or 'P')
 
     def get(self, request, *args, **kwargs):
         queryset = self.get_queryset()
