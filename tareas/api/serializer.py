@@ -273,11 +273,11 @@ class HomeworkSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def delete(instance):
-        if instance.active is False:
+        if instance.status is False:
             raise serializers.ValidationError(
                 'No existe esta tarea en la base de datos')
         else:
-            instance.active = False
+            instance.status = False
             instance.save()
             send_mail(
                 'Tarea eliminada',
